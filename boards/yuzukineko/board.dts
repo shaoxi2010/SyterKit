@@ -23,6 +23,7 @@
 		usb0 = &usb0;
 		pwm0 = &pwm0;
 		display0 = &display0;
+		mmc0 = &mmc0;
 	};
 
 	chosen {
@@ -67,6 +68,17 @@
 		/* PWM0 channel 2 on PD22 drives the panel backlight */
 		pwm0_pins: pwm0-pins {
 			allwinner,pins = <SUNXI_GPIO_PORT_D 22 4>;
+		};
+
+		/* SD card on SMHC0: clk PF2, cmd PF3, data PF0/PF1/PF4/PF5, detect PF6 */
+		mmc0_pins: mmc0-pins {
+			allwinner,pins =
+				<SUNXI_GPIO_PORT_F 2 2>,
+				<SUNXI_GPIO_PORT_F 3 2>,
+				<SUNXI_GPIO_PORT_F 1 2>,
+				<SUNXI_GPIO_PORT_F 0 2>,
+				<SUNXI_GPIO_PORT_F 5 2>,
+				<SUNXI_GPIO_PORT_F 4 2>;
 		};
 
 		spif_pins: spif-pins {
@@ -156,6 +168,39 @@
 				reg = <0>;
 				spi-max-frequency = <100000000>;
 			};
+		};
+
+		/* IDMA descriptors of SMHC0, kept out of every PSRAM load region */
+		mmc0_dma: dma-descriptors@40f30000 {
+			reg = <0x40f30000 0x1000>;
+			no-map;
+		};
+
+		/*
+		 * SD card slot on the carrier board. CCU layout follows the F101
+		 * reference: module clock at 0x830 (mux [26:24], P [9:8], M [3:0],
+		 * gate 31), bus gate/reset at 0x84c bit 0/16; parents are dcxo24M
+		 * and pll-peri 1x/2x (600/1200 MHz, set by the clock init).
+		 */
+		mmc0: mmc@4020000 {
+			compatible = "allwinner,sunxi-mmc";
+			reg = <SUNXI_SMHC0_BASE 0x1000>;
+			label = "sdhci0";
+			allwinner,mmc-id = <0>;
+			bus-width = <4>;
+			max-frequency = <50000000>;
+			memory-region = <&mmc0_dma>;
+			allwinner,clock-gate = <(SUNXI_CCU_BASE + 0x84c) 0>;
+			allwinner,reset = <(SUNXI_CCU_BASE + 0x84c) 16>;
+			allwinner,module-clock =
+				<(SUNXI_CCU_BASE + 0x830) 8 0 1>;
+			allwinner,clock-source-rates =
+				<24000000 600000000 1200000000 0>;
+			allwinner,card-detect =
+				<&pio SUNXI_GPIO_PORT_F 6 0 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&mmc0_pins>;
+			status = "okay";
 		};
 
 		pwm0: pwm@2000c00 {
